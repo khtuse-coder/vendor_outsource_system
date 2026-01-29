@@ -10,7 +10,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- 2. 網頁頁面配置 ---
 st.set_page_config(page_title="委外加工管理系統", layout="centered")
 
-# CSS 優化：確保文字顏色與按鈕樣式
+# CSS 優化：強制設定文字顏色與樣式
 st.markdown("""
     <style>
     .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
@@ -41,16 +41,18 @@ tab1, tab2, tab3 = st.tabs([
     f"✅ 已完工 ({len(completed_list)})"
 ])
 
-# --- Tab 1 & Tab 2 保持不變 ---
+# --- Tab 1: 待接收 (顯示：工單、機種、數量) ---
 with tab1:
     if not pending_list: st.info("目前沒有新工單")
     for order in pending_list:
         with st.container(border=True):
-            st.markdown(f"### 客戶工單：{order.get('customer_wo') or '未提供'}")
+            st.markdown(f"### 📄 工單：{order.get('customer_wo') or 'None'}")
+            st.write(f"**機種：** {order.get('customer_model') or '未提供'}")
             st.write(f"**預計送交數量：** {order.get('order_qty', 0)}")
+            
             c1, c2 = st.columns(2)
             with c1:
-                with st.popover("✏️ 修改數量/備註"):
+                with st.popover("✏️ 修改資訊"):
                     pwd = st.text_input("管理密碼", type="password", key=f"p_e_{order['work_order']}")
                     if pwd == "5678":
                         n_qty = st.number_input("修正數量", value=int(order.get('order_qty', 0)), key=f"q_e_{order['work_order']}")
@@ -62,11 +64,15 @@ with tab1:
                     supabase.table("vendor_orders").update({"vendor_status": "加工中"}).eq("work_order", order['work_order']).execute()
                     st.rerun()
 
+# --- Tab 2: 加工中 (顯示：工單、機種、數量) ---
 with tab2:
     if not working_list: st.info("目前無加工中工單")
     for order in working_list:
         with st.container(border=True):
-            st.markdown(f"### {order.get('customer_wo') or '未提供'}")
+            st.markdown(f"### 📄 工單：{order.get('customer_wo') or 'None'}")
+            st.write(f"**機種：** {order.get('customer_model') or '未提供'}")
+            st.write(f"**加工數量：** {order.get('order_qty', 0)}")
+            
             with st.expander("📝 完工回報 (回車確認)"):
                 ret_q = st.number_input("實際回貨數量", value=int(order.get('order_qty', 0)), key=f"rq_{order['work_order']}")
                 if st.button("🚀 送出完工回報", key=f"fin_{order['work_order']}", use_container_width=True):
@@ -75,32 +81,28 @@ with tab2:
                     }).eq("work_order", order['work_order']).execute()
                     st.rerun()
 
-# --- Tab 3: 已完工 (【修正】確認區移至下方) ---
+# --- Tab 3: 已完工 (顯示：工單、機種、數量) ---
 with tab3:
     unconfirmed = [o for o in completed_list if not o.get('owner_confirmed')]
     confirmed = [o for o in completed_list if o.get('owner_confirmed')]
 
     if unconfirmed:
-        st.subheader("📋 待確認收訖清單")
-        
+        st.subheader("📋 待確認收訖清單 (請勾選)")
         selected_wos = []
         
-        # 1. 先顯示工單清單讓使用者勾選
         for order in unconfirmed:
             with st.container(border=True):
                 col_sel, col_val = st.columns([1, 6])
-                # 勾選框在左側
                 if col_sel.checkbox("", key=f"check_{order['work_order']}"):
                     selected_wos.append(order['work_order'])
                 
-                # 大字顯示工單號碼
                 with col_val:
-                    st.markdown(f"### 📄 {order.get('customer_wo') or 'None'}")
+                    st.markdown(f"### 📄 工單：{order.get('customer_wo') or 'None'}")
+                    st.write(f"**機種：** {order.get('customer_model') or '未提供'}")
                     st.write(f"📦 回貨數：**{order.get('return_qty', 0)}**")
 
         st.divider()
 
-        # 2. 勾選完後，下方才出現輸入密碼與工號的確認區
         if selected_wos:
             with st.container(border=True):
                 st.write(f"🔒 **確認接收 {len(selected_wos)} 筆工單**")
@@ -125,5 +127,6 @@ with tab3:
     st.subheader("📖 歷史收訖紀錄")
     for order in confirmed:
         with st.container(border=True):
-            st.write(f"**工單：** {order.get('customer_wo')} | **實收：** {order.get('return_qty')}")
-            st.caption(f"接收人：{order.get('confirm_emp_id')} | 時間：{order.get('return_time', '')[:16]}")
+            st.write(f"**工單：** {order.get('customer_wo')} | **機種：** {order.get('customer_model')}")
+            st.write(f"**實收：** {order.get('return_qty')} | **接收人：** {order.get('confirm_emp_id')}")
+            st.caption(f"時間：{order.get('return_time', '')[:16]}")
