@@ -10,7 +10,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- 2. 網頁頁面配置 ---
 st.set_page_config(page_title="委外加工管理系統", layout="centered")
 
-# 【修正】強制設定標籤與勾選框文字顏色，解決白色字看不見的問題
+# 【強化視覺】CSS：加大勾選文字與標籤顯示
 st.markdown("""
     <style>
     .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
@@ -18,6 +18,8 @@ st.markdown("""
     }
     .stCheckbox label p { color: #31333F !important; font-weight: bold !important; }
     .stButton button { width: 100%; border-radius: 8px; font-weight: bold; }
+    /* 加大工單顯示區塊的陰影，讓它更像卡片 */
+    .order-item-box { padding: 10px; border-bottom: 1px solid #eee; margin-bottom: 5px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -35,14 +37,13 @@ pending_list = [o for o in all_orders if o.get('vendor_status') == '待接收']
 working_list = [o for o in all_orders if o.get('vendor_status') == '加工中']
 completed_list = [o for o in all_orders if o.get('vendor_status') == '已回貨']
 
-# 筆數統計標籤
 tab1, tab2, tab3 = st.tabs([
     f"🆕 待接收 ({len(pending_list)})", 
     f"⚙️ 加工中 ({len(working_list)})", 
     f"✅ 已完工 ({len(completed_list)})"
 ])
 
-# --- Tab 1: 待接收 ---
+# --- Tab 1 & Tab 2 邏輯不變 ---
 with tab1:
     if not pending_list: st.info("目前沒有新工單")
     for order in pending_list:
@@ -63,7 +64,6 @@ with tab1:
                     supabase.table("vendor_orders").update({"vendor_status": "加工中"}).eq("work_order", order['work_order']).execute()
                     st.rerun()
 
-# --- Tab 2: 加工中 ---
 with tab2:
     if not working_list: st.info("目前無加工中工單")
     for order in working_list:
@@ -77,29 +77,37 @@ with tab2:
                     }).eq("work_order", order['work_order']).execute()
                     st.rerun()
 
-# --- Tab 3: 已完工 (批次勾選接收) ---
+# --- Tab 3: 已完工 (【優化】視覺放大勾選區) ---
 with tab3:
     unconfirmed = [o for o in completed_list if not o.get('owner_confirmed')]
     confirmed = [o for o in completed_list if o.get('owner_confirmed')]
 
     if unconfirmed:
-        st.subheader("📋 待接收確認 (請勾選)")
+        st.subheader("📋 待確認收訖清單")
         
-        # 批次操作區
+        # 批次操作密碼區
         with st.container(border=True):
-            st.write("🔐 **批次執行區域**")
-            c1, c2 = st.columns(2)
-            bulk_pwd = c1.text_input("確認密碼 (5678)", type="password", key="bulk_pwd")
-            bulk_emp = c2.text_input("接收工號", key="bulk_emp")
+            st.write("🔐 **批次確認驗證**")
+            c_p, c_e = st.columns(2)
+            bulk_pwd = c_p.text_input("確認密碼 (5678)", type="password", key="bulk_pwd")
+            bulk_emp = c_e.text_input("接收工號", key="bulk_emp")
             
             selected_wos = []
+            st.divider()
             
-            # 用列表顯示工單與勾選框
+            # 【重要優化】放大顯示每一筆待確認資料
             for order in unconfirmed:
                 col_sel, col_val = st.columns([1, 6])
+                # 勾選框保持在左側
                 if col_sel.checkbox("", key=f"check_{order['work_order']}"):
                     selected_wos.append(order['work_order'])
-                col_val.write(f"**工單：** {order.get('customer_wo')} | **回貨數：** {order.get('return_qty')}")
+                
+                # 文字內容大幅強化顯示
+                with col_val:
+                    st.markdown(f"### 📄 {order.get('customer_wo') or 'None'}")
+                    st.write(f"📦 回貨數：**{order.get('return_qty', 0)}** | 機種：{order.get('customer_model') or '-'}")
+                    st.caption(f"廠商回報時間：{order.get('return_time', '')[:16]}")
+                    st.write("---")
 
             if st.button(f"✅ 批次確認收到 ({len(selected_wos)} 筆)", type="primary", disabled=len(selected_wos)==0):
                 if bulk_pwd == "5678" and bulk_emp:
@@ -113,8 +121,8 @@ with tab3:
                 else: st.warning("請填寫工號")
     
     st.divider()
-    st.subheader("📖 已確認收訖歷史")
+    st.subheader("📖 歷史收訖紀錄")
     for order in confirmed:
         with st.container(border=True):
             st.write(f"**客戶工單：** {order.get('customer_wo')} | **實收：** {order.get('return_qty')}")
-            st.caption(f"接收人：{order.get('confirm_emp_id')} | 時間：{order.get('return_time')[:16]}")
+            st.caption(f"接收人：{order.get('confirm_emp_id')} | 時間：{order.get('return_time', '')[:16]}")
