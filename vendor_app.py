@@ -10,16 +10,14 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- 2. 網頁頁面配置 ---
 st.set_page_config(page_title="委外加工管理系統", layout="centered")
 
-# 【強化視覺】CSS：加大勾選文字與標籤顯示
+# CSS 優化：確保文字顏色與按鈕樣式
 st.markdown("""
     <style>
     .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
         color: #31333F !important; font-weight: bold !important; font-size: 16px !important;
     }
-    .stCheckbox label p { color: #31333F !important; font-weight: bold !important; }
+    .stCheckbox label p { color: #31333F !important; font-weight: bold !important; font-size: 18px !important; }
     .stButton button { width: 100%; border-radius: 8px; font-weight: bold; }
-    /* 加大工單顯示區塊的陰影，讓它更像卡片 */
-    .order-item-box { padding: 10px; border-bottom: 1px solid #eee; margin-bottom: 5px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -43,7 +41,7 @@ tab1, tab2, tab3 = st.tabs([
     f"✅ 已完工 ({len(completed_list)})"
 ])
 
-# --- Tab 1 & Tab 2 邏輯不變 ---
+# --- Tab 1 & Tab 2 保持不變 ---
 with tab1:
     if not pending_list: st.info("目前沒有新工單")
     for order in pending_list:
@@ -77,7 +75,7 @@ with tab2:
                     }).eq("work_order", order['work_order']).execute()
                     st.rerun()
 
-# --- Tab 3: 已完工 (【優化】視覺放大勾選區) ---
+# --- Tab 3: 已完工 (【修正】確認區移至下方) ---
 with tab3:
     unconfirmed = [o for o in completed_list if not o.get('owner_confirmed')]
     confirmed = [o for o in completed_list if o.get('owner_confirmed')]
@@ -85,44 +83,47 @@ with tab3:
     if unconfirmed:
         st.subheader("📋 待確認收訖清單")
         
-        # 批次操作密碼區
-        with st.container(border=True):
-            st.write("🔐 **批次確認驗證**")
-            c_p, c_e = st.columns(2)
-            bulk_pwd = c_p.text_input("確認密碼 (5678)", type="password", key="bulk_pwd")
-            bulk_emp = c_e.text_input("接收工號", key="bulk_emp")
-            
-            selected_wos = []
-            st.divider()
-            
-            # 【重要優化】放大顯示每一筆待確認資料
-            for order in unconfirmed:
+        selected_wos = []
+        
+        # 1. 先顯示工單清單讓使用者勾選
+        for order in unconfirmed:
+            with st.container(border=True):
                 col_sel, col_val = st.columns([1, 6])
-                # 勾選框保持在左側
+                # 勾選框在左側
                 if col_sel.checkbox("", key=f"check_{order['work_order']}"):
                     selected_wos.append(order['work_order'])
                 
-                # 文字內容大幅強化顯示
+                # 大字顯示工單號碼
                 with col_val:
                     st.markdown(f"### 📄 {order.get('customer_wo') or 'None'}")
-                    st.write(f"📦 回貨數：**{order.get('return_qty', 0)}** | 機種：{order.get('customer_model') or '-'}")
-                    st.caption(f"廠商回報時間：{order.get('return_time', '')[:16]}")
-                    st.write("---")
+                    st.write(f"📦 回貨數：**{order.get('return_qty', 0)}**")
 
-            if st.button(f"✅ 批次確認收到 ({len(selected_wos)} 筆)", type="primary", disabled=len(selected_wos)==0):
-                if bulk_pwd == "5678" and bulk_emp:
-                    for wo in selected_wos:
-                        supabase.table("vendor_orders").update({
-                            "owner_confirmed": True, "confirm_emp_id": bulk_emp
-                        }).eq("work_order", wo).execute()
-                    st.success(f"成功接收 {len(selected_wos)} 筆工單！")
-                    st.rerun()
-                elif bulk_pwd != "5678": st.error("密碼錯誤")
-                else: st.warning("請填寫工號")
+        st.divider()
+
+        # 2. 勾選完後，下方才出現輸入密碼與工號的確認區
+        if selected_wos:
+            with st.container(border=True):
+                st.write(f"🔒 **確認接收 {len(selected_wos)} 筆工單**")
+                c_p, c_e = st.columns(2)
+                bulk_pwd = c_p.text_input("確認密碼 (5678)", type="password", key="bulk_pwd")
+                bulk_emp = c_e.text_input("接收工號", key="bulk_emp")
+                
+                if st.button("✅ 批次確認收到", type="primary"):
+                    if bulk_pwd == "5678" and bulk_emp:
+                        for wo in selected_wos:
+                            supabase.table("vendor_orders").update({
+                                "owner_confirmed": True, "confirm_emp_id": bulk_emp
+                            }).eq("work_order", wo).execute()
+                        st.success(f"成功接收 {len(selected_wos)} 筆工單！")
+                        st.rerun()
+                    elif bulk_pwd != "5678": st.error("密碼錯誤")
+                    else: st.warning("請填寫工號")
+        else:
+            st.info("💡 請先勾選上方要確認回貨的工單。")
     
     st.divider()
     st.subheader("📖 歷史收訖紀錄")
     for order in confirmed:
         with st.container(border=True):
-            st.write(f"**客戶工單：** {order.get('customer_wo')} | **實收：** {order.get('return_qty')}")
+            st.write(f"**工單：** {order.get('customer_wo')} | **實收：** {order.get('return_qty')}")
             st.caption(f"接收人：{order.get('confirm_emp_id')} | 時間：{order.get('return_time', '')[:16]}")
