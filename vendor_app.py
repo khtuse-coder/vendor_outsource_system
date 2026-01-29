@@ -2,75 +2,66 @@ import streamlit as st
 from supabase import create_client
 from datetime import datetime
 
-# --- 1. 雲端連線設定 ---
-# 這裡建議使用與班表 App 相同的金鑰，但連接到不同的資料表
+# --- 1. 連線設定 ---
 SUPABASE_URL = "https://iomqohzyuwtbfxnoavjf.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvbXFvaHp5dXd0YmZ4bm9hdmpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2NTUxMzUsImV4cCI6MjA4NTIzMTEzNX0.raqhaFGXC50xWODruMD0M26HgDq0XC74KaOe48UpXP8"
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- 2. 網頁介面配置 ---
-st.set_page_config(page_title="委外加工回報系統", layout="wide")
-st.title("🏭 委外加工進度回報")
+st.set_page_config(page_title="委外加工回報", layout="centered")
+st.title("📦 廠商端工單系統")
 
-# 使用分頁標籤分類工單
 tab1, tab2, tab3 = st.tabs(["🆕 待接收", "⚙️ 加工中", "✅ 已完工"])
 
-# 抓取雲端資料
-try:
-    res = supabase.table("vendor_orders").select("*").order("send_time", desc=True).execute()
-    all_orders = res.data
-except Exception as e:
-    st.error(f"連線失敗: {e}")
-    all_orders = []
+# 抓取資料
+res = supabase.table("vendor_orders").select("*").order("send_time", desc=True).execute()
+all_orders = res.data
 
-# --- 功能函式：更新狀態 ---
-def update_status(wo, new_status, extra_data=None):
-    update_payload = {"vendor_status": new_status}
-    if extra_data:
-        update_payload.update(extra_data)
-    supabase.table("vendor_orders").update(update_payload).eq("work_order", wo).execute()
-    st.rerun()
-
-# --- Tab 1: 待接收 (尚未確認的工單) ---
+# --- Tab 1: 待接收 (增加修改功能) ---
 with tab1:
-    pending_orders = [o for o in all_orders if o['vendor_status'] == '待接收']
-    if not pending_orders:
-        st.write("目前沒有新工單")
-    for order in pending_orders:
+    pending = [o for o in all_orders if o['vendor_status'] == '待接收']
+    for order in pending:
         with st.container(border=True):
-            c1, c2, c3 = st.columns([2, 2, 1])
-            c1.markdown(f"**工單：** {order['work_order']}\n\n**機種：** {order['model_name']}")
-            c2.markdown(f"**數量：** {order['order_qty']}\n\n**送出時間：** {order['send_time'][:16]}")
-            if c3.button("📥 接收", key=f"acc_{order['work_order']}", use_container_width=True):
-                update_status(order['work_order'], "加工中")
-
-# --- Tab 2: 加工中 (生產中，準備回報數量) ---
-with tab2:
-    working_orders = [o for o in all_orders if o['vendor_status'] == '加工中']
-    if not working_orders:
-        st.write("目前沒有加工中的工單")
-    for order in working_orders:
-        with st.container(border=True):
-            st.markdown(f"### 🛠️ {order['work_order']} ({order['model_name']})")
-            st.write(f"預計數量: {order['order_qty']}")
+            # 1. 顯示客戶資訊
+            st.markdown(f"### 客戶工單：{order['customer_wo']}")
+            st.write(f"**客戶機種：** {order['customer_model']}")
+            st.write(f"**預計送交數量：** {order['order_qty']}")
+            if order.get('priority'):
+                st.warning(f"🚩 優先順序：{order['priority']}")
             
-            with st.expander("📝 填寫完工回報"):
-                ret_qty = st.number_input("實際回貨數量", value=order['order_qty'], key=f"q_{order['work_order']}")
-                remark = st.text_area("狀況備註", placeholder="如有缺料或不良請註明", key=f"r_{order['work_order']}")
-                if st.button("🚀 回報完工並送出", key=f"fin_{order['work_order']}", use_container_width=True):
-                    finish_data = {
-                        "return_qty": ret_qty,
-                        "vendor_remark": remark,
-                        "return_time": datetime.now().isoformat()
-                    }
-                    update_status(order['work_order'], "已回貨", finish_data)
+            col1, col2 = st.columns(2)
+            # 2. 修改按鈕：讓廠商微調數量與標記優先級
+            with col1:
+                with st.popover("✏️ 修改數量/備註"):
+                    new_qty = st.number_input("修改數量", value=order['order_qty'], key=f"edit_q_{order['work_order']}")
+                    new_prio = st.text_input("備註優先順序", value=order.get('priority', ''), key=f"edit_p_{order['work_order']}")
+                    if st.button("💾 儲存修改", key=f"save_{order['work_order']}"):
+                        supabase.table("vendor_orders").update({"order_qty": new_qty, "priority": new_prio}).eq("work_order", order['work_order']).execute()
+                        st.rerun()
+            
+            with col2:
+                if st.button("📥 確認接收", key=f"acc_{order['work_order']}", type="primary", use_container_width=True):
+                    supabase.table("vendor_orders").update({"vendor_status": "加工中"}).eq("work_order", order['work_order']).execute()
+                    st.rerun()
 
-# --- Tab 3: 已完工 (歷史紀錄) ---
+# --- Tab 2: 加工中 (不變) ---
+with tab2:
+    working = [o for o in all_orders if o['vendor_status'] == '加工中']
+    for order in working:
+        with st.container(border=True):
+            st.write(f"**客戶工單：** {order['customer_wo']}")
+            st.write(f"**客戶機種：** {order['customer_model']}")
+            st.write(f"**數量：** {order['order_qty']}")
+            with st.expander("📝 完工回報"):
+                ret_qty = st.number_input("實回數量", value=order['order_qty'], key=f"ret_{order['work_order']}")
+                rem = st.text_area("備註", key=f"rem_{order['work_order']}")
+                if st.button("🚀 送出回貨", key=f"fin_{order['work_order']}"):
+                    supabase.table("vendor_orders").update({
+                        "vendor_status": "已回貨", "return_qty": ret_qty, 
+                        "vendor_remark": rem, "return_time": datetime.now().isoformat()
+                    }).eq("work_order", order['work_order']).execute()
+                    st.rerun()
+
+# --- Tab 3: 已完工 (列表簡化) ---
 with tab3:
-    completed_orders = [o for o in all_orders if o['vendor_status'] == '已回貨']
-    if not completed_orders:
-        st.write("尚無完工紀錄")
-    else:
-        # 用表格顯示歷史紀錄比較整齊
-        st.dataframe(completed_orders, use_container_width=True, hide_index=True,
-                     column_order=("work_order", "model_name", "return_qty", "return_time", "vendor_remark"))
+    done = [o for o in all_orders if o['vendor_status'] == '已回貨']
+    st.dataframe(done, column_order=("customer_wo", "customer_model", "return_qty", "return_time"), hide_index=True)
