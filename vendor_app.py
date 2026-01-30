@@ -11,20 +11,34 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- 2. 網頁頁面配置 ---
 st.set_page_config(page_title="廠商加工回報", layout="centered")
 
-# 【深色高對比主題】維持黑底螢光風格
+# 【視覺修復】CSS 精準化，不再誤殺表格
 st.markdown("""
     <style>
+    /* 1. 背景深色 */
     .stApp { background-color: #0E1117 !important; }
-    h1, h2, h3, h4, p, span, label, div, li { color: #FAFAFA !important; }
+    
+    /* 2. 只針對文字標籤變白，不影響表格內部的結構 */
+    h1, h2, h3, h4, p, label, .stMarkdown { color: #FAFAFA !important; }
+    
+    /* 標題樣式 */
     h1 { font-size: 28px !important; font-weight: 800 !important; color: #00FFCC !important; }
     h3 { font-size: 22px !important; font-weight: bold !important; margin-bottom: 5px !important; }
     
-    /* 勾選框優化 */
+    /* 勾選框放大 */
     [data-testid="stCheckbox"] { transform: scale(1.4); margin-left: 5px; }
     
-    /* 表格樣式優化 */
-    [data-testid="stDataFrame"] { border: 1px solid #444; border-radius: 5px; }
-    
+    /* 3. 【關鍵修復】強制表格背景為深色，文字為淺色 */
+    [data-testid="stDataFrame"] {
+        background-color: #262730 !important;
+        border: 1px solid #4F4F4F !important;
+        border-radius: 5px;
+    }
+    /* 修正表格內文字顏色，避免白底白字 */
+    div[data-testid="stDataFrame"] div[role="grid"] {
+        color: #FAFAFA !important;
+        background-color: #262730 !important;
+    }
+
     /* 按鈕樣式 */
     div[data-testid="stButton"] button[kind="primary"] {
         background-color: #00CC96 !important; border: none !important; color: #000 !important; font-weight: bold !important;
@@ -37,7 +51,7 @@ st.markdown("""
 
 st.title("📦 廠商端加工系統")
 
-# Session State 初始化
+# Session State
 if "pending_select_all" not in st.session_state: st.session_state.pending_select_all = False
 if "working_select_all" not in st.session_state: st.session_state.working_select_all = False
 
@@ -53,7 +67,7 @@ working = [o for o in all_data if o.get('vendor_status') == '加工中']
 
 tab1, tab2 = st.tabs([f"🆕 待接收 ({len(pending)})", f"⚙️ 加工中 ({len(working)})"])
 
-# --- Tab 1: 待接收 (保持全選與姓名輸入) ---
+# --- Tab 1: 待接收 ---
 with tab1:
     if not pending:
         st.info("目前無新工單")
@@ -91,7 +105,7 @@ with tab1:
                     st.rerun()
                 else: st.warning("請填寫姓名")
 
-# --- Tab 2: 加工中 (【升級】Excel 編輯回報模式) ---
+# --- Tab 2: 加工中 (表格修復版) ---
 with tab2:
     if not working:
         st.info("目前無加工中工單")
@@ -106,9 +120,7 @@ with tab2:
 
         st.write("---")
 
-        selected_w_data = [] # 用來存被選中的完整資料
-        
-        # 1. 顯示勾選清單
+        selected_w_data = []
         for o in working:
             with st.container(border=True):
                 c_sel, c_info = st.columns([1, 8])
@@ -118,51 +130,48 @@ with tab2:
                     st.markdown(f"### 📄 {o.get('customer_wo')}")
                     st.write(f"機種：{o.get('customer_model')} | 發單數：{o.get('order_qty')}")
 
-        # 2. 如果有勾選，顯示「編輯表格」讓廠商填寫 OK/NG/備註
         if selected_w_data:
             st.markdown(f"""<div style="background-color:#5D4037;padding:10px;border-radius:10px;border:1px solid #FFAB91;margin-top:10px;margin-bottom:10px;">
                 <h3 style="margin:0;color:#FFAB91!important;">🚀 填寫回報資訊 ({len(selected_w_data)} 筆)</h3>
             </div>""", unsafe_allow_html=True)
             
-            # 建立 DataFrame 供編輯
+            # 建立資料表
             df = pd.DataFrame(selected_w_data)
-            # 預設 OK數 = 訂單數, NG數 = 0
             df["OK數"] = df["order_qty"]
             df["NG數"] = 0
             df["廠商備註"] = "" 
             
-            # 設定顯示欄位
-            edit_df = df[["work_order", "customer_wo", "customer_model", "order_qty", "OK數", "NG數", "廠商備註"]]
-            
-            # 顯示可編輯表格 (Data Editor)
+            # 使用 data_editor
+            # 這裡不使用 st.write，直接用 st.data_editor 讓使用者編輯
             edited_data = st.data_editor(
-                edit_df,
+                df,
                 column_config={
-                    "work_order": None, # 隱藏內部 ID
-                    "customer_wo": st.column_config.TextColumn("工單號碼", disabled=True),
+                    "work_order": None, # 隱藏 ID
+                    "customer_wo": st.column_config.TextColumn("工單", disabled=True),
                     "customer_model": st.column_config.TextColumn("機種", disabled=True),
-                    "order_qty": st.column_config.NumberColumn("發單數", disabled=True),
-                    "OK數": st.column_config.NumberColumn("✅ OK數量", required=True, min_value=0),
-                    "NG數": st.column_config.NumberColumn("❌ NG數量", required=True, min_value=0),
-                    "廠商備註": st.column_config.TextColumn("📝 備註 (選填)", width="large"),
+                    "order_qty": st.column_config.NumberColumn("發單", disabled=True),
+                    "OK數": st.column_config.NumberColumn("✅ OK", required=True, min_value=0),
+                    "NG數": st.column_config.NumberColumn("❌ NG", required=True, min_value=0),
+                    "廠商備註": st.column_config.TextColumn("📝 備註", width="large"),
                 },
+                column_order=("customer_wo", "customer_model", "order_qty", "OK數", "NG數", "廠商備註", "work_order"),
                 hide_index=True,
                 use_container_width=True,
-                key="editor"
+                key="editor_table"
             )
-
-            st.caption("💡 請直接在上方表格修改 OK/NG 數量與備註")
             
             vw_name = st.text_input("請輸入回報人姓名", key="w_staff")
             
             if st.button("確認完工送出", type="primary", key="w_confirm"):
                 if vw_name:
-                    # 讀取編輯後的資料並更新
                     for index, row in edited_data.iterrows():
+                        # 計算回貨總數
+                        final_ret = row["OK數"] + row["NG數"]
+                        
                         supabase.table("vendor_orders").update({
                             "vendor_status": "已回貨",
                             "vendor_staff": vw_name,
-                            "return_qty": row["OK數"] + row["NG數"], # 總回貨數
+                            "return_qty": final_ret,
                             "ok_qty": row["OK數"],
                             "ng_qty": row["NG數"],
                             "vendor_remark": row["廠商備註"],
