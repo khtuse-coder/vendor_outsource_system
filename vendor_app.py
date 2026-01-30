@@ -6,7 +6,7 @@ import requests
 import json
 
 # --- 🔥 LINE 設定 (維持你原本設定好的) ---
-LINE_ACCESS_TOKEN =["LINE_TOKEN"]
+LINE_ACCESS_TOKEN =st.secrets["LINE_TOKEN"]
 
 def send_line_msg(text):
     """透過 LINE 廣播模式發送通知"""
@@ -26,8 +26,8 @@ def send_line_msg(text):
         print(f"LINE 發生錯誤: {e}")
 
 # --- 2. 連線設定 ---
-SUPABASE_URL = ["SUPABASE_URL"]
-SUPABASE_KEY = ["SUPABASE_KEY"]
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- 3. 網頁頁面配置 ---
@@ -190,4 +190,5 @@ with tab3:
             st.dataframe(df_show, use_container_width=True, hide_index=True)
         else: st.warning("查無資料")
     else: st.info("尚無歷史紀錄")
+
 
