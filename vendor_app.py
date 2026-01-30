@@ -5,30 +5,21 @@ import pandas as pd
 import requests
 import json
 
-# --- 🔥 LINE 設定 (我幫你修好空格了，直接用這串) ---
+# --- 🔥 LINE 設定 (維持你原本設定好的) ---
 LINE_ACCESS_TOKEN = "EHUErtlRZf95o8W0hqmME0iNvKjNdWCKYc3cApNomcgjJP9InqHM3zjIN0tvt9ViZO/LDsC4R7eV4G8Ka/gfY0gTLbikYN4hRo5ll4xNW7tG92IxVjgwgaIBBbJaG95gz5iJwbKAIDTk1neRQt9SugdB04t89/1O/w1cDnyilFU="
 
 def send_line_msg(text):
-    """透過 LINE 廣播模式發送通知 (不用 User ID)"""
+    """透過 LINE 廣播模式發送通知"""
     try:
-        # 改用 broadcast (廣播) 端點
         url = "https://api.line.me/v2/bot/message/broadcast"
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {LINE_ACCESS_TOKEN}"
         }
         payload = {
-            "messages": [
-                {
-                    "type": "text",
-                    "text": text
-                }
-            ]
+            "messages": [{"type": "text", "text": text}]
         }
-        # 發送請求
         response = requests.post(url, headers=headers, data=json.dumps(payload))
-        
-        # 檢查是否成功
         if response.status_code != 200:
             print(f"LINE 發送失敗: {response.text}")
     except Exception as e:
@@ -76,6 +67,7 @@ completed = [o for o in all_data if o.get('vendor_status') == '已回貨']
 
 tab1, tab2, tab3 = st.tabs([f"🆕 待接收 ({len(pending)})", f"⚙️ 加工中 ({len(working)})", f"📜 歷史紀錄"])
 
+# --- Tab 1: 待接收 (❌ 這裡的 LINE 通知已移除) ---
 with tab1:
     if not pending:
         st.info("目前無新工單")
@@ -110,17 +102,14 @@ with tab1:
             if st.button("確認接收", type="primary", key="p_confirm"):
                 if v_name:
                     for wo in selected_p:
+                        # 只更新資料庫，不發通知
                         supabase.table("vendor_orders").update({"vendor_status": "加工中", "vendor_staff": v_name}).eq("work_order", wo).execute()
                         
-                        # 【LINE 通知】
-                        current_wo = next((x['customer_wo'] for x in pending if x['work_order'] == wo), "未知工單")
-                        msg = f"🔔 廠商已接收工單\n📄 工單：{current_wo}\n👤 領收人：{v_name}"
-                        send_line_msg(msg)
-
-                    st.success("接收成功！LINE 通知已發送")
+                    st.success("接收成功！") # 提示文字也拿掉通知字樣
                     st.rerun()
                 else: st.warning("請填寫姓名")
 
+# --- Tab 2: 加工中 (✅ 這裡保留 LINE 通知) ---
 with tab2:
     if not working:
         st.info("目前無加工中工單")
@@ -178,7 +167,7 @@ with tab2:
                             "vendor_remark": final_rem, "return_time": datetime.now().isoformat()
                         }).eq("work_order", wo_id).execute()
                         
-                        # 【LINE 通知】
+                        # 【LINE 通知】 只在這邊發送！
                         msg = f"🚀 廠商已回報完工\n📄 工單：{item['customer_wo']}\n✅ 良品：{qty - final_ng}\n❌ NG：{final_ng}\n👤 經手人：{vw_name}"
                         if final_rem: msg += f"\n📝 備註：{final_rem}"
                         send_line_msg(msg)
