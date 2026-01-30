@@ -1,6 +1,7 @@
 import streamlit as st
 from supabase import create_client
 from datetime import datetime
+import pandas as pd
 
 # --- 1. 連線設定 ---
 SUPABASE_URL = "https://iomqohzyuwtbfxnoavjf.supabase.co"
@@ -10,59 +11,33 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- 2. 網頁頁面配置 ---
 st.set_page_config(page_title="廠商加工回報", layout="centered")
 
-# 【視覺重構】深色高對比主題 (Dark High Contrast)
+# 【深色高對比主題】維持黑底螢光風格
 st.markdown("""
     <style>
-    /* 1. 強制深色背景 */
     .stApp { background-color: #0E1117 !important; }
-    
-    /* 2. 全局文字亮白化 */
-    h1, h2, h3, h4, p, span, label, div, li { 
-        color: #FAFAFA !important; 
-    }
-    
-    /* 3. 標題與字體加大 */
-    h1 { font-size: 28px !important; font-weight: 800 !important; color: #00FFCC !important; /* 標題用螢光綠 */ }
+    h1, h2, h3, h4, p, span, label, div, li { color: #FAFAFA !important; }
+    h1 { font-size: 28px !important; font-weight: 800 !important; color: #00FFCC !important; }
     h3 { font-size: 22px !important; font-weight: bold !important; margin-bottom: 5px !important; }
-    p, span, label { font-size: 18px !important; }
-
-    /* 4. 優化勾選框 (Checkbox) - 讓它在深色底也看得到框 */
+    
+    /* 勾選框優化 */
     [data-testid="stCheckbox"] { transform: scale(1.4); margin-left: 5px; }
-    [data-testid="stCheckbox"] label span { background-color: transparent !important; }
     
-    /* 5. 分頁標籤優化 */
-    .stTabs [data-baseweb="tab-list"] button { background-color: #262730; }
-    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-        font-size: 18px !important; color: #FFF !important;
-    }
-
-    /* 6. 按鈕專屬樣式 */
-    /* 全選按鈕：螢光綠底黑字 */
+    /* 表格樣式優化 */
+    [data-testid="stDataFrame"] { border: 1px solid #444; border-radius: 5px; }
+    
+    /* 按鈕樣式 */
     div[data-testid="stButton"] button[kind="primary"] {
-        background-color: #00CC96 !important; 
-        border: none !important;
-        font-size: 18px !important; font-weight: bold !important;
+        background-color: #00CC96 !important; border: none !important; color: #000 !important; font-weight: bold !important;
     }
-    div[data-testid="stButton"] button[kind="primary"] p { color: #000000 !important; }
-
-    /* 取消/一般按鈕：深灰底白字 */
     div[data-testid="stButton"] button[kind="secondary"] {
-        background-color: #262730 !important; 
-        border: 1px solid #4F4F4F !important;
-        font-size: 18px !important; font-weight: bold !important;
-    }
-    div[data-testid="stButton"] button[kind="secondary"] p { color: #FFFFFF !important; }
-    
-    /* 卡片背景微調 */
-    [data-testid="stVerticalBlock"] > [style*="flex-direction: column;"] > [data-testid="stVerticalBlock"] {
-        background-color: #1E1E1E; border-radius: 10px; padding: 10px;
+        background-color: #262730 !important; border: 1px solid #4F4F4F !important; color: #FFF !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("📦 廠商端加工系統")
 
-# 初始化 Session State (保持不變)
+# Session State 初始化
 if "pending_select_all" not in st.session_state: st.session_state.pending_select_all = False
 if "working_select_all" not in st.session_state: st.session_state.working_select_all = False
 
@@ -78,18 +53,15 @@ working = [o for o in all_data if o.get('vendor_status') == '加工中']
 
 tab1, tab2 = st.tabs([f"🆕 待接收 ({len(pending)})", f"⚙️ 加工中 ({len(working)})"])
 
-# --- Tab 1: 待接收 ---
+# --- Tab 1: 待接收 (保持全選與姓名輸入) ---
 with tab1:
     if not pending:
         st.info("目前無新工單")
     else:
-        # 按鈕區 (螢光綠 vs 深灰)
-        c_btn1, c_btn2, c_space = st.columns([1, 1, 2])
-        
+        c_btn1, c_btn2, _ = st.columns([1, 1, 2])
         if c_btn1.button("✅ 全選", key="p_all", type="primary"):
             for o in pending: st.session_state[f"p_ck_{o['work_order']}"] = True
             st.rerun()
-            
         if c_btn2.button("❌ 取消", key="p_none", type="secondary"):
             for o in pending: st.session_state[f"p_ck_{o['work_order']}"] = False
             st.rerun()
@@ -100,17 +72,15 @@ with tab1:
         for o in pending:
             with st.container(border=True):
                 c_sel, c_info = st.columns([1, 8])
-                # 勾選框
-                is_checked = c_sel.checkbox("", key=f"p_ck_{o['work_order']}")
-                if is_checked: selected_p.append(o['work_order'])
-                
+                if c_sel.checkbox("", key=f"p_ck_{o['work_order']}"):
+                    selected_p.append(o['work_order'])
                 with c_info:
                     st.markdown(f"### 📄 {o.get('customer_wo')}")
                     st.write(f"機種：{o.get('customer_model')} | 數量：{o.get('order_qty')}")
 
         if selected_p:
             st.markdown(f"""<div style="background-color:#004D40;padding:10px;border-radius:10px;border:1px solid #00CC96;margin-top:10px;">
-                <h3 style="margin:0;color:#00FFCC!important;">📥 已選取 {len(selected_p)} 筆</h3>
+                <h3 style="margin:0;color:#00FFCC!important;">📥 準備接收 {len(selected_p)} 筆</h3>
             </div>""", unsafe_allow_html=True)
             
             v_name = st.text_input("請輸入領收人姓名", key="p_staff")
@@ -121,47 +91,83 @@ with tab1:
                     st.rerun()
                 else: st.warning("請填寫姓名")
 
-# --- Tab 2: 加工中 ---
+# --- Tab 2: 加工中 (【升級】Excel 編輯回報模式) ---
 with tab2:
     if not working:
         st.info("目前無加工中工單")
     else:
-        w_btn1, w_btn2, w_space = st.columns([1, 1, 2])
-        
+        w_btn1, w_btn2, _ = st.columns([1, 1, 2])
         if w_btn1.button("✅ 全選", key="w_all", type="primary"): 
             for o in working: st.session_state[f"w_ck_{o['work_order']}"] = True
             st.rerun()
-            
         if w_btn2.button("❌ 取消", key="w_none", type="secondary"): 
             for o in working: st.session_state[f"w_ck_{o['work_order']}"] = False
             st.rerun()
 
         st.write("---")
 
-        selected_w = []
+        selected_w_data = [] # 用來存被選中的完整資料
+        
+        # 1. 顯示勾選清單
         for o in working:
             with st.container(border=True):
                 c_sel, c_info = st.columns([1, 8])
-                is_checked = c_sel.checkbox("", key=f"w_ck_{o['work_order']}")
-                if is_checked: selected_w.append(o['work_order'])
-                
+                if c_sel.checkbox("", key=f"w_ck_{o['work_order']}"):
+                    selected_w_data.append(o)
                 with c_info:
                     st.markdown(f"### 📄 {o.get('customer_wo')}")
-                    st.write(f"機種：{o.get('customer_model')} | 加工數：{o.get('order_qty')}")
+                    st.write(f"機種：{o.get('customer_model')} | 發單數：{o.get('order_qty')}")
 
-        if selected_w:
-            st.markdown(f"""<div style="background-color:#5D4037;padding:10px;border-radius:10px;border:1px solid #FFAB91;margin-top:10px;">
-                <h3 style="margin:0;color:#FFAB91!important;">🚀 準備完工 {len(selected_w)} 筆</h3>
+        # 2. 如果有勾選，顯示「編輯表格」讓廠商填寫 OK/NG/備註
+        if selected_w_data:
+            st.markdown(f"""<div style="background-color:#5D4037;padding:10px;border-radius:10px;border:1px solid #FFAB91;margin-top:10px;margin-bottom:10px;">
+                <h3 style="margin:0;color:#FFAB91!important;">🚀 填寫回報資訊 ({len(selected_w_data)} 筆)</h3>
             </div>""", unsafe_allow_html=True)
+            
+            # 建立 DataFrame 供編輯
+            df = pd.DataFrame(selected_w_data)
+            # 預設 OK數 = 訂單數, NG數 = 0
+            df["OK數"] = df["order_qty"]
+            df["NG數"] = 0
+            df["廠商備註"] = "" 
+            
+            # 設定顯示欄位
+            edit_df = df[["work_order", "customer_wo", "customer_model", "order_qty", "OK數", "NG數", "廠商備註"]]
+            
+            # 顯示可編輯表格 (Data Editor)
+            edited_data = st.data_editor(
+                edit_df,
+                column_config={
+                    "work_order": None, # 隱藏內部 ID
+                    "customer_wo": st.column_config.TextColumn("工單號碼", disabled=True),
+                    "customer_model": st.column_config.TextColumn("機種", disabled=True),
+                    "order_qty": st.column_config.NumberColumn("發單數", disabled=True),
+                    "OK數": st.column_config.NumberColumn("✅ OK數量", required=True, min_value=0),
+                    "NG數": st.column_config.NumberColumn("❌ NG數量", required=True, min_value=0),
+                    "廠商備註": st.column_config.TextColumn("📝 備註 (選填)", width="large"),
+                },
+                hide_index=True,
+                use_container_width=True,
+                key="editor"
+            )
 
+            st.caption("💡 請直接在上方表格修改 OK/NG 數量與備註")
+            
             vw_name = st.text_input("請輸入回報人姓名", key="w_staff")
+            
             if st.button("確認完工送出", type="primary", key="w_confirm"):
                 if vw_name:
-                    for wo in selected_w:
-                        orig_qty = next(x['order_qty'] for x in working if x['work_order'] == wo)
+                    # 讀取編輯後的資料並更新
+                    for index, row in edited_data.iterrows():
                         supabase.table("vendor_orders").update({
-                            "vendor_status": "已回貨", "vendor_staff": vw_name,
-                            "return_qty": orig_qty, "return_time": datetime.now().isoformat()
-                        }).eq("work_order", wo).execute()
+                            "vendor_status": "已回貨",
+                            "vendor_staff": vw_name,
+                            "return_qty": row["OK數"] + row["NG數"], # 總回貨數
+                            "ok_qty": row["OK數"],
+                            "ng_qty": row["NG數"],
+                            "vendor_remark": row["廠商備註"],
+                            "return_time": datetime.now().isoformat()
+                        }).eq("work_order", row["work_order"]).execute()
+                    st.success("回報成功！")
                     st.rerun()
                 else: st.warning("請填寫姓名")
