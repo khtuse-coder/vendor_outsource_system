@@ -25,34 +25,24 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(page_title="廠內管理端", layout="centered")
 
-# 【終極視覺修正】強制亮色主題，確保黑字白底
+# 【視覺設定】強制亮色主題 + 黑字
 st.markdown("""
     <style>
-    /* 強制整個網頁背景為白色 */
     .stApp { background-color: #FFFFFF !important; }
-    
-    /* 強制所有文字為深灰色/黑色 */
     h1, h2, h3, p, span, label, div { color: #222222 !important; }
     
-    /* 頂部狀態列：改為單一橫條樣式 */
+    /* 狀態列 */
     .status-bar { 
-        background-color: #F1F3F4; 
-        padding: 12px; 
-        border-radius: 8px; 
-        border: 1px solid #DADCE0;
-        margin-bottom: 20px;
-        font-weight: bold;
-        color: #202124 !important;
+        background-color: #F1F3F4; padding: 12px; border-radius: 8px; 
+        border: 1px solid #DADCE0; margin-bottom: 20px; font-weight: bold; color: #202124 !important;
     }
     
-    /* 修正 Tab 文字顏色 */
-    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-        color: #202124 !important; font-weight: bold !important;
-    }
+    /* 表格樣式優化 */
+    [data-testid="stDataFrame"] { border: 1px solid #DDD; }
     
-    /* 修正卡片與勾選框 */
-    .stCheckbox label p { color: #222222 !important; font-weight: bold !important; }
-    [data-testid="stExpander"] { background-color: #FFFFFF !important; border: 1px solid #DDD !important; }
+    /* NG 數量特別標示紅色 */
+    .ng-text { color: #D32F2F !important; font-weight: bold; }
+    .ok-text { color: #388E3C !important; font-weight: bold; }
     
     .stButton button { width: 100%; font-weight: bold; }
     </style>
@@ -65,7 +55,7 @@ try:
 except:
     all_data = []
 
-# --- 3. 頂部狀態列 (Label + 文字) ---
+# --- 3. 頂部狀態列 ---
 in_stock_count = len([o for o in all_data if o['vendor_status'] in ['待接收', '加工中']])
 to_confirm_count = len([o for o in all_data if o['vendor_status'] == '已回貨' and not o['owner_confirmed']])
 
@@ -82,8 +72,8 @@ if st.button("登出系統", use_container_width=False):
     st.rerun()
 
 st.title("🏢 廠內管理戰情室")
-
 st.divider()
+
 tab1, tab2, tab3 = st.tabs(["✏️ 修改在庫資訊", "📊 全域進度監控", "✅ 批量領收確認"])
 
 # --- Tab 1: 修改資訊 (廠商在庫) ---
@@ -112,11 +102,14 @@ with tab2:
         df = pd.DataFrame(all_data)
         if q:
             df = df[df['customer_wo'].astype(str).str.contains(q, na=False) | df['customer_model'].astype(str).str.contains(q, na=False)]
-        df_show = df[["customer_wo", "customer_model", "vendor_status", "order_qty", "return_qty", "confirm_emp_id"]].copy()
-        df_show.columns = ["工單", "機種", "狀態", "發單數", "實收數", "最後確認人"]
+        
+        # 【新增】顯示 OK/NG 與備註欄位
+        df_show = df[["customer_wo", "customer_model", "vendor_status", "order_qty", "return_qty", "ok_qty", "ng_qty", "vendor_remark", "vendor_staff"]].copy()
+        df_show.columns = ["工單", "機種", "狀態", "發單", "實收", "✅OK", "❌NG", "備註", "廠商經手"]
+        
         st.dataframe(df_show, use_container_width=True, hide_index=True)
 
-# --- Tab 3: 批量領收 (待收貨) ---
+# --- Tab 3: 批量領收 (待收貨 - 顯示 OK/NG) ---
 with tab3:
     to_confirm = [o for o in all_data if o['vendor_status'] == '已回貨' and not o['owner_confirmed']]
     if not to_confirm:
@@ -129,10 +122,22 @@ with tab3:
                 col_sel, col_val = st.columns([1, 6])
                 if col_sel.checkbox("", key=f"sel_{o['work_order']}"):
                     selected_wos.append(o['work_order'])
+                
+                # 【優化】這裡顯示詳細的 OK/NG 資訊
                 with col_val:
                     st.markdown(f"### 📄 {o.get('customer_wo')}")
-                    st.write(f"機種：{o.get('customer_model')} | 實收：**{o.get('return_qty')}**")
-        
+                    # 使用 HTML 語法讓 NG 顯示紅色，OK 顯示綠色
+                    st.markdown(f"""
+                    **機種：** {o.get('customer_model')} <br>
+                    **總回貨：** {o.get('return_qty')} &nbsp;|&nbsp; 
+                    <span class='ok-text'>✅ OK：{o.get('ok_qty', 0)}</span> &nbsp;|&nbsp; 
+                    <span class='ng-text'>❌ NG：{o.get('ng_qty', 0)}</span>
+                    """, unsafe_allow_html=True)
+                    
+                    if o.get('vendor_remark'):
+                        st.caption(f"📝 廠商備註：{o.get('vendor_remark')}")
+                    st.caption(f"廠商經手人：{o.get('vendor_staff', '未填寫')}")
+
         if selected_wos:
             st.divider()
             if st.button(f"✅ 確認收到這 {len(selected_wos)} 筆貨物", type="primary"):
