@@ -28,8 +28,8 @@ if not st.session_state.emp_id:
     st.stop()
 
 # --- 2. 連線設定 ---
-SUPABASE_URL = "https://iomqohzyuwtbfxnoavjf.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvbXFvaHp5dXd0YmZ4bm9hdmpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2NTUxMzUsImV4cCI6MjA4NTIzMTEzNX0.raqhaFGXC50xWODruMD0M26HgDq0XC74KaOe48UpXP8"
+SUPABASE_URL = ["SUPABASE_URL"]
+SUPABASE_KEY = ["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(page_title="廠內管理端", layout="centered")
@@ -182,3 +182,4 @@ with tab3:
                     }).eq("work_order", wo).execute()
                 st.success("確認領收成功！")
                 st.rerun()
+
