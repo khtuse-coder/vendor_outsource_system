@@ -28,8 +28,8 @@ if not st.session_state.emp_id:
     st.stop()
 
 # --- 2. 連線設定 ---
-SUPABASE_URL = ["SUPABASE_URL"]
-SUPABASE_KEY = ["SUPABASE_KEY"]
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(page_title="廠內管理端", layout="centered")
@@ -182,4 +182,5 @@ with tab3:
                     }).eq("work_order", wo).execute()
                 st.success("確認領收成功！")
                 st.rerun()
+
 
