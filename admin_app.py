@@ -9,7 +9,16 @@ if "emp_id" not in st.session_state:
 
 if not st.session_state.emp_id:
     st.set_page_config(page_title="廠內管理系統", layout="centered")
-    st.title("🏢 廠內委外管理系統")
+    # 【登入頁面暗黑化】
+    st.markdown("""
+        <style>
+        .stApp { background-color: #0E1117 !important; }
+        h1, label, .stTextInput input { color: #FAFAFA !important; }
+        .stButton button { background-color: #00CC96 !important; color: #000 !important; font-weight: bold; }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    st.title("🔐 廠內委外管理系統")
     user_input = st.text_input("請輸入員工工號以開始")
     if st.button("確認進入"):
         if user_input:
@@ -25,26 +34,52 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(page_title="廠內管理端", layout="centered")
 
-# 【視覺設定】強制亮色主題 + 黑字
+# 【視覺重構】專業暗黑模式 CSS
 st.markdown("""
     <style>
-    .stApp { background-color: #FFFFFF !important; }
-    h1, h2, h3, p, span, label, div { color: #222222 !important; }
+    /* 1. 全局深色背景 */
+    .stApp { background-color: #0E1117 !important; }
     
-    /* 狀態列 */
+    /* 2. 全局文字亮白化 */
+    h1, h2, h3, p, span, label, div, li { color: #FAFAFA !important; }
+    h1 { color: #00FFCC !important; font-weight: 800 !important; } /* 標題用螢光綠 */
+    
+    /* 3. 頂部狀態列：深灰底 + 螢光邊框 */
     .status-bar { 
-        background-color: #F1F3F4; padding: 12px; border-radius: 8px; 
-        border: 1px solid #DADCE0; margin-bottom: 20px; font-weight: bold; color: #202124 !important;
+        background-color: #262730; 
+        padding: 15px; 
+        border-radius: 10px; 
+        border-left: 5px solid #00CC96; /* 螢光綠飾條 */
+        margin-bottom: 20px;
+        font-weight: bold;
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
     
-    /* 表格樣式優化 */
-    [data-testid="stDataFrame"] { border: 1px solid #DDD; }
+    /* 4. 分頁標籤優化 */
+    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+        color: #FAFAFA !important; font-weight: bold !important; font-size: 16px !important;
+    }
     
-    /* NG 數量特別標示紅色 */
-    .ng-text { color: #D32F2F !important; font-weight: bold; }
-    .ok-text { color: #388E3C !important; font-weight: bold; }
+    /* 5. 卡片與擴展區塊背景 */
+    [data-testid="stExpander"] { background-color: #1E1E1E !important; border: 1px solid #444 !important; }
+    .stContainer { background-color: #1E1E1E; }
     
-    .stButton button { width: 100%; font-weight: bold; }
+    /* 6. 表格樣式 (深底白字) */
+    [data-testid="stDataFrame"] { background-color: #262730 !important; border: 1px solid #444; }
+    
+    /* 7. 特殊文字顏色 (NG/OK) - 改用螢光色以利黑底閱讀 */
+    .ng-text { color: #FF5252 !important; font-weight: bold; font-size: 1.1em; }
+    .ok-text { color: #69F0AE !important; font-weight: bold; font-size: 1.1em; }
+    
+    /* 8. 按鈕樣式 */
+    .stButton button { width: 100%; font-weight: bold; border-radius: 8px; }
+    div[data-testid="stButton"] button[kind="primary"] {
+        background-color: #00CC96 !important; color: #000 !important; border: none !important;
+    }
+    div[data-testid="stButton"] button[kind="secondary"] {
+        background-color: #262730 !important; color: #FFF !important; border: 1px solid #555 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -67,7 +102,7 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-if st.button("登出系統", use_container_width=False):
+if st.button("登出系統", type="secondary", use_container_width=False):
     st.session_state.emp_id = None
     st.rerun()
 
@@ -87,7 +122,7 @@ with tab1:
             with st.expander("📝 點此修改"):
                 n_qty = st.number_input("修正數量", value=o['order_qty'], key=f"q_{o['work_order']}")
                 n_prio = st.text_input("優先級/備註", value=o.get('priority', ''), key=f"p_{o['work_order']}")
-                if st.button("💾 儲存更新", key=f"btn_{o['work_order']}"):
+                if st.button("💾 儲存更新", key=f"btn_{o['work_order']}", type="primary"):
                     supabase.table("vendor_orders").update({
                         "order_qty": n_qty, "priority": n_prio,
                         "confirm_emp_id": f"Edit by {st.session_state.emp_id}"
@@ -103,13 +138,12 @@ with tab2:
         if q:
             df = df[df['customer_wo'].astype(str).str.contains(q, na=False) | df['customer_model'].astype(str).str.contains(q, na=False)]
         
-        # 【新增】顯示 OK/NG 與備註欄位
-        df_show = df[["customer_wo", "customer_model", "vendor_status", "order_qty", "return_qty", "ok_qty", "ng_qty", "vendor_remark", "vendor_staff"]].copy()
-        df_show.columns = ["工單", "機種", "狀態", "發單", "實收", "✅OK", "❌NG", "備註", "廠商經手"]
-        
+        # 整理顯示欄位 (包含 OK/NG)
+        df_show = df[["customer_wo", "customer_model", "vendor_status", "order_qty", "return_qty", "ok_qty", "ng_qty", "confirm_emp_id"]].copy()
+        df_show.columns = ["工單", "機種", "狀態", "發單", "實收", "OK", "NG", "確認人"]
         st.dataframe(df_show, use_container_width=True, hide_index=True)
 
-# --- Tab 3: 批量領收 (待收貨 - 顯示 OK/NG) ---
+# --- Tab 3: 批量領收 (待收貨 - 高亮顯示 OK/NG) ---
 with tab3:
     to_confirm = [o for o in all_data if o['vendor_status'] == '已回貨' and not o['owner_confirmed']]
     if not to_confirm:
@@ -123,10 +157,9 @@ with tab3:
                 if col_sel.checkbox("", key=f"sel_{o['work_order']}"):
                     selected_wos.append(o['work_order'])
                 
-                # 【優化】這裡顯示詳細的 OK/NG 資訊
+                # 【優化】使用螢光色顯示 OK/NG，在黑底上超明顯
                 with col_val:
                     st.markdown(f"### 📄 {o.get('customer_wo')}")
-                    # 使用 HTML 語法讓 NG 顯示紅色，OK 顯示綠色
                     st.markdown(f"""
                     **機種：** {o.get('customer_model')} <br>
                     **總回貨：** {o.get('return_qty')} &nbsp;|&nbsp; 
@@ -140,6 +173,7 @@ with tab3:
 
         if selected_wos:
             st.divider()
+            # 按鈕文字改成黑色，背景螢光綠，對比度最高
             if st.button(f"✅ 確認收到這 {len(selected_wos)} 筆貨物", type="primary"):
                 for wo in selected_wos:
                     supabase.table("vendor_orders").update({
