@@ -6,7 +6,7 @@ import requests
 import json
 
 # --- 🔥 LINE 設定 (維持你原本設定好的) ---
-LINE_ACCESS_TOKEN = "EHUErtlRZf95o8W0hqmME0iNvKjNdWCKYc3cApNomcgjJP9InqHM3zjIN0tvt9ViZO/LDsC4R7eV4G8Ka/gfY0gTLbikYN4hRo5ll4xNW7tG92IxVjgwgaIBBbJaG95gz5iJwbKAIDTk1neRQt9SugdB04t89/1O/w1cDnyilFU="
+LINE_ACCESS_TOKEN =["LINE_TOKEN"]
 
 def send_line_msg(text):
     """透過 LINE 廣播模式發送通知"""
@@ -26,8 +26,8 @@ def send_line_msg(text):
         print(f"LINE 發生錯誤: {e}")
 
 # --- 2. 連線設定 ---
-SUPABASE_URL = "https://iomqohzyuwtbfxnoavjf.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvbXFvaHp5dXd0YmZ4bm9hdmpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2NTUxMzUsImV4cCI6MjA4NTIzMTEzNX0.raqhaFGXC50xWODruMD0M26HgDq0XC74KaOe48UpXP8"
+SUPABASE_URL = ["SUPABASE_URL"]
+SUPABASE_KEY = ["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- 3. 網頁頁面配置 ---
@@ -190,3 +190,4 @@ with tab3:
             st.dataframe(df_show, use_container_width=True, hide_index=True)
         else: st.warning("查無資料")
     else: st.info("尚無歷史紀錄")
+
