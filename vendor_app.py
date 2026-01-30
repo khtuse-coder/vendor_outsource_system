@@ -10,35 +10,61 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # --- 2. 網頁頁面配置 ---
 st.set_page_config(page_title="廠商加工回報", layout="centered")
 
-# CSS 美化 (保持你喜歡的樣子)
+# 【視覺重構】深色高對比主題 (Dark High Contrast)
 st.markdown("""
     <style>
-    .stApp { background-color: #FFFFFF !important; }
-    h1 { font-size: 28px !important; color: #222 !important; font-weight: 800 !important; }
-    h3 { font-size: 22px !important; color: #222 !important; font-weight: bold !important; margin-bottom: 5px !important; }
-    p, span, label, div { color: #333 !important; font-size: 16px !important; }
-    [data-testid="stCheckbox"] { transform: scale(1.3); margin-left: 5px; }
+    /* 1. 強制深色背景 */
+    .stApp { background-color: #0E1117 !important; }
     
-    /* 按鈕樣式 */
-    div[data-testid="stButton"] button[kind="primary"] {
-        background-color: #FF4B4B !important; color: #FFFFFF !important; border: none !important;
-        font-size: 18px !important; font-weight: bold !important; border-radius: 8px !important;
+    /* 2. 全局文字亮白化 */
+    h1, h2, h3, h4, p, span, label, div, li { 
+        color: #FAFAFA !important; 
     }
-    div[data-testid="stButton"] button[kind="primary"] p { color: #FFFFFF !important; }
     
-    div[data-testid="stButton"] button[kind="secondary"] {
-        background-color: #F0F2F6 !important; color: #31333F !important; border: 1px solid #D6D6D6 !important;
-        font-size: 18px !important; font-weight: bold !important; border-radius: 8px !important;
-    }
-    div[data-testid="stButton"] button[kind="secondary"] p { color: #31333F !important; }
+    /* 3. 標題與字體加大 */
+    h1 { font-size: 28px !important; font-weight: 800 !important; color: #00FFCC !important; /* 標題用螢光綠 */ }
+    h3 { font-size: 22px !important; font-weight: bold !important; margin-bottom: 5px !important; }
+    p, span, label { font-size: 18px !important; }
+
+    /* 4. 優化勾選框 (Checkbox) - 讓它在深色底也看得到框 */
+    [data-testid="stCheckbox"] { transform: scale(1.4); margin-left: 5px; }
+    [data-testid="stCheckbox"] label span { background-color: transparent !important; }
     
+    /* 5. 分頁標籤優化 */
+    .stTabs [data-baseweb="tab-list"] button { background-color: #262730; }
     .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-        font-size: 18px !important; color: #222 !important;
+        font-size: 18px !important; color: #FFF !important;
+    }
+
+    /* 6. 按鈕專屬樣式 */
+    /* 全選按鈕：螢光綠底黑字 */
+    div[data-testid="stButton"] button[kind="primary"] {
+        background-color: #00CC96 !important; 
+        border: none !important;
+        font-size: 18px !important; font-weight: bold !important;
+    }
+    div[data-testid="stButton"] button[kind="primary"] p { color: #000000 !important; }
+
+    /* 取消/一般按鈕：深灰底白字 */
+    div[data-testid="stButton"] button[kind="secondary"] {
+        background-color: #262730 !important; 
+        border: 1px solid #4F4F4F !important;
+        font-size: 18px !important; font-weight: bold !important;
+    }
+    div[data-testid="stButton"] button[kind="secondary"] p { color: #FFFFFF !important; }
+    
+    /* 卡片背景微調 */
+    [data-testid="stVerticalBlock"] > [style*="flex-direction: column;"] > [data-testid="stVerticalBlock"] {
+        background-color: #1E1E1E; border-radius: 10px; padding: 10px;
     }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("📦 廠商端加工系統")
+
+# 初始化 Session State (保持不變)
+if "pending_select_all" not in st.session_state: st.session_state.pending_select_all = False
+if "working_select_all" not in st.session_state: st.session_state.working_select_all = False
 
 # 抓取資料
 try:
@@ -57,18 +83,15 @@ with tab1:
     if not pending:
         st.info("目前無新工單")
     else:
-        # 按鈕區
+        # 按鈕區 (螢光綠 vs 深灰)
         c_btn1, c_btn2, c_space = st.columns([1, 1, 2])
         
-        # 【關鍵修復】直接修改 session_state 裡的每一個 key
         if c_btn1.button("✅ 全選", key="p_all", type="primary"):
-            for o in pending:
-                st.session_state[f"p_ck_{o['work_order']}"] = True # 強制打勾
+            for o in pending: st.session_state[f"p_ck_{o['work_order']}"] = True
             st.rerun()
             
         if c_btn2.button("❌ 取消", key="p_none", type="secondary"):
-            for o in pending:
-                st.session_state[f"p_ck_{o['work_order']}"] = False # 強制取消
+            for o in pending: st.session_state[f"p_ck_{o['work_order']}"] = False
             st.rerun()
         
         st.write("---")
@@ -77,27 +100,24 @@ with tab1:
         for o in pending:
             with st.container(border=True):
                 c_sel, c_info = st.columns([1, 8])
-                # 這裡不需要 value=...，因為我們已經直接改了 session_state
+                # 勾選框
                 is_checked = c_sel.checkbox("", key=f"p_ck_{o['work_order']}")
-                if is_checked:
-                    selected_p.append(o['work_order'])
+                if is_checked: selected_p.append(o['work_order'])
                 
                 with c_info:
                     st.markdown(f"### 📄 {o.get('customer_wo')}")
                     st.write(f"機種：{o.get('customer_model')} | 數量：{o.get('order_qty')}")
 
         if selected_p:
-            st.markdown(f"""<div style="background-color:#E8F5E9;padding:10px;border-radius:10px;border:1px solid #4CAF50;margin-top:10px;">
-                <h3 style="margin:0;color:#2E7D32!important;">📥 已選取 {len(selected_p)} 筆</h3>
+            st.markdown(f"""<div style="background-color:#004D40;padding:10px;border-radius:10px;border:1px solid #00CC96;margin-top:10px;">
+                <h3 style="margin:0;color:#00FFCC!important;">📥 已選取 {len(selected_p)} 筆</h3>
             </div>""", unsafe_allow_html=True)
             
             v_name = st.text_input("請輸入領收人姓名", key="p_staff")
             if st.button("確認接收", type="primary", key="p_confirm"):
                 if v_name:
                     for wo in selected_p:
-                        supabase.table("vendor_orders").update({
-                            "vendor_status": "加工中", "vendor_staff": v_name
-                        }).eq("work_order", wo).execute()
+                        supabase.table("vendor_orders").update({"vendor_status": "加工中", "vendor_staff": v_name}).eq("work_order", wo).execute()
                     st.rerun()
                 else: st.warning("請填寫姓名")
 
@@ -106,18 +126,14 @@ with tab2:
     if not working:
         st.info("目前無加工中工單")
     else:
-        # 按鈕區
         w_btn1, w_btn2, w_space = st.columns([1, 1, 2])
         
-        # 【關鍵修復】直接修改 session_state
         if w_btn1.button("✅ 全選", key="w_all", type="primary"): 
-            for o in working:
-                st.session_state[f"w_ck_{o['work_order']}"] = True
+            for o in working: st.session_state[f"w_ck_{o['work_order']}"] = True
             st.rerun()
             
         if w_btn2.button("❌ 取消", key="w_none", type="secondary"): 
-            for o in working:
-                st.session_state[f"w_ck_{o['work_order']}"] = False
+            for o in working: st.session_state[f"w_ck_{o['work_order']}"] = False
             st.rerun()
 
         st.write("---")
@@ -127,16 +143,15 @@ with tab2:
             with st.container(border=True):
                 c_sel, c_info = st.columns([1, 8])
                 is_checked = c_sel.checkbox("", key=f"w_ck_{o['work_order']}")
-                if is_checked:
-                    selected_w.append(o['work_order'])
+                if is_checked: selected_w.append(o['work_order'])
                 
                 with c_info:
                     st.markdown(f"### 📄 {o.get('customer_wo')}")
                     st.write(f"機種：{o.get('customer_model')} | 加工數：{o.get('order_qty')}")
 
         if selected_w:
-            st.markdown(f"""<div style="background-color:#FFF3E0;padding:10px;border-radius:10px;border:1px solid #FF9800;margin-top:10px;">
-                <h3 style="margin:0;color:#E65100!important;">🚀 準備完工 {len(selected_w)} 筆</h3>
+            st.markdown(f"""<div style="background-color:#5D4037;padding:10px;border-radius:10px;border:1px solid #FFAB91;margin-top:10px;">
+                <h3 style="margin:0;color:#FFAB91!important;">🚀 準備完工 {len(selected_w)} 筆</h3>
             </div>""", unsafe_allow_html=True)
 
             vw_name = st.text_input("請輸入回報人姓名", key="w_staff")
