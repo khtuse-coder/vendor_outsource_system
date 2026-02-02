@@ -39,8 +39,10 @@ st.markdown("""
     h1, h2, h3, h4, p, label, div, span { color: #FAFAFA !important; }
     h1 { font-size: 26px !important; font-weight: 800 !important; color: #00FFCC !important; }
     .report-card { background-color: #1E1E1E; border: 1px solid #444; border-radius: 10px; padding: 15px; margin-bottom: 15px; }
-    .status-tag { background-color: #004d40; color: #00FFCC; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
-    .date-tag { color: #FFAB91; font-weight: bold; }
+    /* 優先級標籤樣式 */
+    .priority-tag { background-color: #004d40; color: #00FFCC; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+    /* 需求日標籤樣式 */
+    .date-tag { background-color: #3e2723; color: #FFAB91; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; border: 1px solid #FFAB91; margin-left: 5px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -48,7 +50,6 @@ st.title("📦 廠商端加工系統")
 
 # --- 4. 資料讀取 ---
 try:
-    # 根據您的欄位：work_order, customer_wo, customer_model, order_qty 等
     res = supabase.table("vendor_orders").select("*").order("send_time", desc=True).execute()
     all_data = res.data
 except:
@@ -84,10 +85,12 @@ with tab1:
                     selected_p.append(o['work_order'])
                 with c_info:
                     st.markdown(f"### 📄 {o.get('customer_wo')}")
-                    # 顯示欄位：機種、數量、優先級/需求日
-                    # 註：若資料庫之後增加 request_date 欄位，可將下方 o.get('priority') 改掉
-                    req_date = o.get('priority', '一般') 
-                    st.write(f"機種：{o.get('customer_model')} | 數量：{o.get('order_qty')} | 📅 **需求/優先度：{req_date}**")
+                    # 按照順序顯示：機種、數量、需求日、優先
+                    model = o.get('customer_model', '-')
+                    qty = o.get('order_qty', 0)
+                    due = o.get('due_date', '未設定')
+                    prio = o.get('priority', '一般')
+                    st.write(f"機種：{model} | 數量：{qty} | 📅 需求日：{due} | ⚡ 優先：{prio}")
 
         if selected_p:
             st.markdown(f'<div class="report-card" style="border-color:#00CC96;">📥 準備接收 {len(selected_p)} 筆工單</div>', unsafe_allow_html=True)
@@ -125,8 +128,10 @@ with tab2:
                 if c_sel.checkbox("", key=f"w_ck_{o['work_order']}"):
                     selected_w_data.append(o)
                 with c_info:
-                    req_date = o.get('priority', '一般')
-                    st.markdown(f"### 📄 {o.get('customer_wo')} <span class='status-tag'>{req_date}</span>", unsafe_allow_html=True)
+                    due = o.get('due_date', '未設定')
+                    prio = o.get('priority', '一般')
+                    # 同時顯示需求日標籤與優先級標籤
+                    st.markdown(f"### 📄 {o.get('customer_wo')} <span class='date-tag'>📅 {due}</span> <span class='priority-tag'>⚡ {prio}</span>", unsafe_allow_html=True)
                     st.write(f"機種：{o.get('customer_model')} | 發單數：{o.get('order_qty')}")
 
         if selected_w_data:
@@ -150,7 +155,6 @@ with tab2:
                         final_ng = st.session_state[f"ng_in_{wo_id}"]
                         final_rem = st.session_state[f"rem_in_{wo_id}"]
                         
-                        # 更新資料庫欄位：return_qty, ok_qty, ng_qty, vendor_staff
                         supabase.table("vendor_orders").update({
                             "vendor_status": "已回貨", 
                             "vendor_staff": vw_name,
@@ -180,9 +184,9 @@ with tab3:
         
         if not df.empty:
             df["return_time"] = df["return_time"].apply(lambda x: x[:16].replace('T', ' ') if x else '-')
-            # 根據您的需求加入「需求度/優先級」
-            df_show = df[["return_time", "customer_wo", "customer_model", "priority", "ok_qty", "ng_qty", "vendor_staff", "vendor_remark"]].copy()
-            df_show.columns = ["時間", "工單", "機種", "需求/優先級", "OK", "NG", "經手人", "備註"]
+            # 表格排列：加入需求日與優先級
+            df_show = df[["return_time", "customer_wo", "customer_model", "order_qty", "due_date", "priority", "ok_qty", "ng_qty", "vendor_staff", "vendor_remark"]].copy()
+            df_show.columns = ["回貨時間", "工單", "機種", "發單數", "需求日", "優先級", "OK", "NG", "經手人", "備註"]
             st.dataframe(df_show, use_container_width=True, hide_index=True)
         else: st.warning("查無資料")
     else: st.info("尚無歷史紀錄")
