@@ -5,7 +5,7 @@ import pandas as pd
 import requests
 import json
 
---- 1. 基礎設定與 LINE 通知 ---
+#--- 1. 基礎設定與 LINE 通知 ---
 LINE_ACCESS_TOKEN = st.secrets["LINE_TOKEN"]
 
 def send_line_msg(text):
@@ -190,6 +190,7 @@ with tab3:
             st.dataframe(df_show, use_container_width=True, hide_index=True)
         else: st.warning("查無資料")
     else: st.info("尚無歷史紀錄")
+
 
 
 
