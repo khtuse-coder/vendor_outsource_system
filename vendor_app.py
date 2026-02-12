@@ -6,24 +6,24 @@ import requests
 import json
 
 # --- 1. 基礎設定與 LINE 通知 ---
-LINE_ACCESS_TOKEN = st.secrets["LINE_TOKEN"]
+#LINE_ACCESS_TOKEN = st.secrets["LINE_TOKEN"]
 
-def send_line_msg(text):
-    """透過 LINE 廣播模式發送通知"""
-    try:
-        url = "https://api.line.me/v2/bot/message/broadcast"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {LINE_ACCESS_TOKEN}"
-        }
-        payload = {
-            "messages": [{"type": "text", "text": text}]
-        }
-        response = requests.post(url, headers=headers, data=json.dumps(payload))
-        if response.status_code != 200:
-            print(f"LINE 發送失敗: {response.text}")
-    except Exception as e:
-        print(f"LINE 發生錯誤: {e}")
+# def send_line_msg(text):
+#     """透過 LINE 廣播模式發送通知"""
+#     try:
+#         url = "https://api.line.me/v2/bot/message/broadcast"
+#         headers = {
+#             "Content-Type": "application/json",
+#             "Authorization": f"Bearer {LINE_ACCESS_TOKEN}"
+#         }
+#         payload = {
+#             "messages": [{"type": "text", "text": text}]
+#         }
+#         response = requests.post(url, headers=headers, data=json.dumps(payload))
+#         if response.status_code != 200:
+#             print(f"LINE 發送失敗: {response.text}")
+#     except Exception as e:
+#         print(f"LINE 發生錯誤: {e}")
 
 # --- 2. 連線設定 ---
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
@@ -190,3 +190,4 @@ with tab3:
             st.dataframe(df_show, use_container_width=True, hide_index=True)
         else: st.warning("查無資料")
     else: st.info("尚無歷史紀錄")
+
